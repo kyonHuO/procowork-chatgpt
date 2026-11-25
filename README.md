@@ -6,7 +6,7 @@ ArcGIS Pro のチャット欄から、自然言語でレイヤーを調べたり
 
 - Windows x64、ArcGIS Pro 3.5 系、Node.js 22.12 以降、Windows x64 版 Codex CLI が必要です。ArcGIS Pro 3.5.3 で動作確認しています。
 - Codex CLI は、たとえば PowerShell で `npm install -g @openai/codex` と実行してインストールします。
-- `ProCowork-ChatGPT-0.1.15.esriAddinX` をダブルクリックしてインストールし、ArcGIS Pro を再起動します。
+- [GitHub Releases](https://github.com/kyonHuO/procowork-chatgpt/releases/latest) から `ProCowork-ChatGPT-0.1.15.esriAddinX` をダウンロードし、ダブルクリックしてインストールします。その後、ArcGIS Pro を再起動します。
 
 ## 使い方
 
