@@ -2,8 +2,8 @@
 
   <!--
     ArcGIS Pro add-in: "ProCowork in ArcGIS Pro".
-    Target ArcGIS Pro 3.7 (SDK on .NET 10). For Pro 3.6 use net8.0-windows and
-    Esri.ArcGISPro.Extensions30 3.6.*; for 3.5 and earlier, net6.0-windows.
+    Target ArcGIS Pro 3.5 on .NET 8.
+
 
     NOTE: The .esriAddinX packaging step is provided by the "ArcGIS Pro SDK for
     .NET" build targets carried by the Esri.ArcGISPro.Extensions30 package.
@@ -12,7 +12,7 @@
   -->
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
@@ -23,7 +23,7 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <AssemblyName>ArcGISClaude</AssemblyName>
     <RootNamespace>ArcGISClaude</RootNamespace>
-    <Version>0.1.13</Version>
+    <Version>0.1.15</Version>
     <Company>mraad23</Company>
     <Product>ProCowork in ArcGIS Pro</Product>
 
@@ -41,7 +41,7 @@
     <!-- All ArcGIS Pro API assemblies. CopyLocal is false by design: Pro provides
          these at runtime; shipping copies causes assembly-load conflicts. Pin the
          version to the Pro release you target. -->
-    <PackageReference Include="Esri.ArcGISPro.Extensions30" Version="3.7.*">
+    <PackageReference Include="Esri.ArcGISPro.Extensions30" Version="3.5.0.57366">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
 
@@ -51,7 +51,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
 
-    <!-- DPAPI (ProtectedData) is provided by the net10.0-windows framework. -->
+    <!-- DPAPI (ProtectedData) is provided by the net8.0-windows framework. -->
 
     <!-- Markdown parsing for the chat panel. Pro does not ship this, so it's a
          normal (copy-local) reference, unlike the ExcludeAssets packages above. -->
@@ -83,6 +83,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Engine\chatgpt.mjs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(ChatGptSdkDir)\**\*" Condition="'$(ChatGptSdkDir)' != ''">
+      <Link>Install\Engine\sdk\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+    <Content Include="..\..\LICENSE" Link="LICENSE" />
+    <Content Include="..\..\build\Devkit-NOTICE.md" Link="Devkit-NOTICE.md" />
+    <Content Include="..\..\build\Markdig-LICENSE.txt" Link="Markdig-LICENSE.txt" />
     <Resource Include="Images\**\*.png" />
   </ItemGroup>
 
@@ -99,7 +106,7 @@
   <!-- Deploy the packaged add-in to the folder ArcGIS Pro scans at startup.
        RegisterAddIn.exe does not reliably target it when Documents is redirected
        (OneDrive, Parallels Mac home, etc.), so copy it there explicitly. -->
-  <Target Name="DeployAddinToProFolder" AfterTargets="PackageArcGISContents">
+  <Target Name="DeployAddinToProFolder" AfterTargets="PackageArcGISContents" Condition="'$(SkipLocalDeploy)' != 'true'">
     <PropertyGroup>
       <!-- Resolve the real Documents path (handles OneDrive / Parallels redirection). -->
       <DocsFolder>$(registry:HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders@Personal)</DocsFolder>

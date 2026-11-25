@@ -19,7 +19,7 @@ namespace ArcGISClaude
             if (e.Key != Key.Return && e.Key != Key.Enter) return;
             if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) return; // Shift+Enter → newline
 
-            if (DataContext is ChatDockPaneViewModel vm && vm.SendCommand.CanExecute(null))
+            if (DataContext is ChatGptDockPaneViewModel vm && vm.SendCommand.CanExecute(null))
             {
                 vm.SendCommand.Execute(null);
                 e.Handled = true; // swallow only when we send, so Enter during a turn still types

@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using ArcGISClaude.Engine;
 using Newtonsoft.Json.Linq;
 
 namespace ArcGISClaude.Bridge
@@ -16,8 +15,8 @@ namespace ArcGISClaude.Bridge
     /// the entire ArcGIS Pro session, so — unlike the old in-process Python daemon —
     /// there is nothing to be torn down and go stale.
     ///
-    /// It is an MCP streamable-HTTP server the Claude Code engine talks to directly
-    /// (no Python child process): the generated .mcp.json points the engine at
+    /// It is an MCP streamable-HTTP server the Codex engine talks to directly
+    /// (no Python child process): the add-in points the engine at
     /// <c>http://127.0.0.1:<see cref="Port"/>/mcp</c> with a Bearer <see cref="Token"/>.
     /// Each request is one stateless <c>POST /mcp</c> carrying a JSON-RPC 2.0 message,
     /// answered with a single application/json body (no SSE stream, no session id).
@@ -60,17 +59,19 @@ namespace ArcGISClaude.Bridge
         /// Per-session shared secret. Any local process can reach a loopback port,
         /// and this bridge executes arbitrary Python — so every request must carry
         /// <c>Authorization: Bearer &lt;token&gt;</c>. Handed to the engine via the
-        /// headers block in the generated .mcp.json (same channel as the port).
+        /// engine receives this token with the port over its private stdin.
         /// </summary>
         public string Token { get; private set; }
 
         /// <summary>
         /// MCP server identity. The name is also the mcpServers key in the generated
-        /// .mcp.json (see <see cref="AppPaths.WriteMcpConfig"/>), which namespaces the
+        /// the engine configuration, which namespaces the
         /// engine-visible tool ids (mcp__arcgis_bridge__*) that the workspace CLAUDE.md
         /// references — one constant so they cannot drift apart. The version reports
         /// the add-in version (csproj &lt;Version&gt;) rather than a second literal.
         /// </summary>
+        private const int MaxResultChars = 5000;
+        private const int SearchRowLimit = 10000;
         public const string ServerName = "arcgis_bridge";
         private static readonly string ServerVersion =
             typeof(BridgeService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -346,7 +347,7 @@ namespace ArcGISClaude.Bridge
         }
 
         /// <summary>
-        /// Bound one tool-result string to <see cref="EngineSettings.MaxResultChars"/>
+        /// Bound one tool-result string to <see cref="MaxResultChars"/>
         /// (Options page) so a large payload can't bloat the engine's context. Every
         /// result stays in the context window for the rest of the session, so an
         /// unbounded payload (a big search_cursor, <c>result = list(range(10**6))</c>,
@@ -358,7 +359,7 @@ namespace ArcGISClaude.Bridge
         /// </summary>
         private static string Clamp(string text)
         {
-            var max = EngineSettings.Current.MaxResultChars;
+            var max = MaxResultChars;
             if (string.IsNullOrEmpty(text) || text.Length <= max) return text;
             return text.Substring(0, max)
                 + "\n\n…[truncated " + (text.Length - max)
@@ -387,7 +388,7 @@ namespace ArcGISClaude.Bridge
             // applies when the engine omits "limit" entirely; fill in the configured
             // default here so the Options-page setting actually takes effect.
             if (op == "search_cursor" && args["limit"] == null)
-                args["limit"] = EngineSettings.Current.SearchRowLimit;
+                args["limit"] = SearchRowLimit;
             return await _runner.RunAsync(op, args, ct).ConfigureAwait(false);
         }
 

@@ -1,19 +1,17 @@
 using System;
 using System.IO;
-using Newtonsoft.Json.Linq;
+
 using ArcGIS.Desktop.Framework;
 using ArcGIS.Desktop.Framework.Contracts;
 using ArcGISClaude.Bridge;
-using ArcGISClaude.Engine;
-using ArcGISClaude.Options;
 
 namespace ArcGISClaude
 {
     /// <summary>
     /// Add-in module. Acts as the service locator + lifecycle owner for the
     /// shared infrastructure: filesystem paths and the always-on execution
-    /// <see cref="BridgeService"/> that serves Claude's live-project tool calls.
-    /// The Claude Code engine process itself is owned per-session by the chat
+    /// <see cref="BridgeService"/> that serves Codex's live-project tool calls.
+    /// The Codex engine process itself is owned per-session by the chat
     /// dock pane view model.
     /// </summary>
     internal class Module1 : Module
@@ -31,12 +29,9 @@ namespace ArcGISClaude
         {
             Paths = AppPaths.Create();
 
-            // Restore saved auth/engine settings (defaults to subscription).
-            AuthSettingsStore.Load(EngineSettings.Current);
-
             // The bridge is fully automatic: it comes up with the add-in and lives the
             // whole session, so the user never starts/stops it and it can't go stale.
-            // Start it first so its loopback port is known before we write .mcp.json.
+            // Start it first so its loopback port is known before passing it to the local engine.
             _bridge = new BridgeService(Paths);
             _bridge.Start();
 
@@ -47,11 +42,11 @@ namespace ArcGISClaude
 
         protected override void Uninitialize()
         {
-            // Kill the chat pane's claude engine FIRST, then the bridge — otherwise
+            // Kill the chat pane's Codex engine FIRST, then the bridge — otherwise
             // the bridge is torn down under a still-live client mid-call. The pane VM
             // cannot observe Pro shutdown itself (the SDK has no DockPane dispose
             // hook), so it is reached from here.
-            try { ChatDockPaneViewModel.ShutdownInstance(); } catch { }
+            try { ChatGptDockPaneViewModel.ShutdownInstance(); } catch { }
             // Stops the listener; the engine's next request gets connection-refused
             // the moment Pro shuts down.
             try { _bridge?.Dispose(); } catch { }
@@ -73,13 +68,14 @@ namespace ArcGISClaude
         /// <summary>Shipped Python toolbox (the ArcPy write path).</summary>
         public string PythonDir { get; private set; }
 
-        /// <summary>Working directory the Claude Code engine runs in.</summary>
+        /// <summary>Working directory the Codex engine runs in.</summary>
         public string WorkspaceDir { get; private set; }
 
         /// <summary>Diagnostic log folder under %USERPROFILE%\.arcgis_claude.</summary>
         public string LogDir { get; private set; }
 
-        public string McpConfigPath => Path.Combine(WorkspaceDir, ".mcp.json");
+        public int BridgePort { get; private set; }
+        public string BridgeToken { get; private set; }
         public string RunScriptToolbox => Path.Combine(PythonDir, "RunScript.pyt");
 
         public static AppPaths Create()
@@ -91,12 +87,12 @@ namespace ArcGISClaude
                 PythonDir = Path.Combine(addinDir, "Python"),
                 LogDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".arcgis_claude"),
+                    ".procowork_chatgpt"),
                 // MyDocuments (not UserProfile\Documents) so a redirected Documents
                 // folder — e.g. OneDrive or a Parallels Mac home — resolves correctly.
                 WorkspaceDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                    "ArcGIS", "ClaudeWorkspace")
+                    "ArcGIS", "ProCoworkChatGPT")
             };
             return p;
         }
@@ -106,7 +102,7 @@ namespace ArcGISClaude
             Directory.CreateDirectory(WorkspaceDir);
 
             // The shipped template is authoritative: re-seed every template file
-            // (CLAUDE.md plus the reference/ docs it points at) whenever the workspace
+            // (AGENTS.md plus the reference/ docs it points at) whenever the workspace
             // copy differs, so template fixes reach existing installs.
             // (Customizations belong in the repo template, not the workspace copy —
             // edits made directly to the workspace copy are overwritten here.)
@@ -122,42 +118,8 @@ namespace ArcGISClaude
                     File.Copy(template, target, overwrite: true);
                 }
 
-            // Always (re)generate .mcp.json so the bridge's loopback port + auth
-            // token track the current session.
-            WriteMcpConfig(bridgePort, bridgeToken);
-        }
-
-        /// <summary>
-        /// Writes .mcp.json pointing the engine at the in-process bridge's MCP
-        /// streamable-HTTP endpoint, authenticated per-request with the session
-        /// token. The per-request timeout deliberately exceeds ScriptRunner's GP
-        /// bound (see <see cref="BridgeTimeouts"/>), so a slow tool surfaces the
-        /// bridge's clean timeout message instead of a transport abort.
-        /// </summary>
-        public void WriteMcpConfig(int bridgePort, string bridgeToken)
-        {
-            var config = new JObject
-            {
-                ["mcpServers"] = new JObject
-                {
-                    [BridgeService.ServerName] = new JObject
-                    {
-                        ["type"] = "http",
-                        ["url"] = "http://127.0.0.1:" + bridgePort + "/mcp",
-                        ["headers"] = new JObject
-                        {
-                            ["Authorization"] = "Bearer " + bridgeToken
-                        },
-                        ["timeout"] = BridgeTimeouts.McpRequestMs
-                    }
-                }
-            };
-            var json = config.ToString();
-
-            // Port and token change each Pro session, so this rewrites on most loads;
-            // the content check still skips a redundant write when nothing changed.
-            if (!File.Exists(McpConfigPath) || File.ReadAllText(McpConfigPath) != json)
-                File.WriteAllText(McpConfigPath, json);
+            BridgePort = bridgePort;
+            BridgeToken = bridgeToken;
         }
     }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "procowork-devkit-runtime",
+  "version": "0.1.15",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "jose": "6.2.12",
+    "openai": "7.21.0",
+    "proper-lockfile": "4.1.2"
+  }
+}
